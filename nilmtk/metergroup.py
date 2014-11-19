@@ -9,14 +9,15 @@ from sys import stdout
 import matplotlib.pyplot as plt
 from .elecmeter import ElecMeter, ElecMeterID
 from .appliance import Appliance
-from .datastore import join_key
+from .datastore import join_key, Key
 from .utils import (tree_root, nodes_adjacent_to_root, simplest_type_for,
-                    flatten_2d_list, convert_to_timestamp)
+                    flatten_2d_list, convert_to_timestamp, container_to_string) 
 from .plots import plot_series
 from .measurement import select_best_ac_type, AC_TYPES
 from .electric import Electric
 from .timeframe import TimeFrame
-from .preprocessing import Apply
+from .preprocessing import Apply, Clip
+from pandas.core.series import Series
 
 class MeterGroup(Electric):
 
@@ -82,33 +83,25 @@ class MeterGroup(Electric):
             if appliance.n_meters == 1:
                 # Attach this appliance to just a single meter
                 meter = self[meter_ids[0]]
-                if isinstance(meter, MeterGroup): # MeterGroup of site_meters
-                    metergroup = meter
-                    for meter in metergroup.meters:
-                        meter.appliances.append(appliance)
-                else:
-                    meter.appliances.append(appliance)
+                meter.appliances.append(appliance)
             else:
-                # DualSupply or 3-phase appliance so need a meter group
-                metergroup = MeterGroup()
-                metergroup.meters = [self[meter_id] for meter_id in meter_ids]
-                for meter in metergroup.meters:
-                    # We assume that any meters used for measuring
-                    # dual-supply or 3-phase appliances are not also used
-                    # for measuring single-supply appliances.
-                    self.meters.remove(meter)
+                #The metergroup approach in the else can not handle the tuple from eg REDD (20,10)
+                if 'NILMTK_CO_' in appliance.metadata['dataset']:
+                    meter_id = tuple([m_id[0] for m_id in meter_ids])
+                    meter = self[ElecMeterID(meter_id, building_id.instance,appliance.metadata['dataset'])]
                     meter.appliances.append(appliance)
-                self.meters.append(metergroup)
-
-        # disable disabled meters
-        meters_to_disable = [m for m in self.meters 
-                             if isinstance(m, ElecMeter) 
-                             and m.metadata.get('disabled')]
-        for meter in meters_to_disable:
-            self.meters.remove(meter)
-            self.disabled_meters.append(meter)
-
-
+                else:
+                    metergroup = MeterGroup()
+                    # DualSupply or 3-phase appliance so need a meter group
+                    metergroup.meters = [self[meter_id] for meter_id in meter_ids]
+                    for meter in metergroup.meters:
+                        # We assume that any meters used for measuring
+                        # dual-supply or 3-phase appliances are not also used
+                        # for measuring single-supply appliances.
+                        self.meters.remove(meter)
+                        meter.appliances.append(appliance)
+                    self.meters.append(metergroup)
+                
     def union(self, other):
         """
         Returns
@@ -178,7 +171,8 @@ class MeterGroup(Electric):
             # default to get first meter
             return self[(key, 1)]
         elif isinstance(key, ElecMeterID):
-            if isinstance(key.instance, tuple):
+            #Control that nested_metergroups not empty
+            if isinstance(key.instance, tuple) and self.nested_metergroups():
                 # find meter group from a key of the form
                 # ElecMeterID(instance=(1,2), building=1, dataset='REDD')
                 for group in self.nested_metergroups():
@@ -186,15 +180,12 @@ class MeterGroup(Electric):
                             group.building() == key.building and
                             group.dataset() == key.dataset):
                         return group
-                # Else try to find an ElecMeter with instance=(1,2)
-                for meter in self.meters:
-                    if meter.identifier == key:
-                        return meter
             elif key.instance == 0:
                 metergroup_of_building = self.select(
                     building=key.building, dataset=key.dataset)
                 return metergroup_of_building.mains()
             else:
+                #Added for finding the tuple() for REDD 
                 for meter in self.meters:
                     if meter.identifier == key:
                         return meter
@@ -213,13 +204,7 @@ class MeterGroup(Electric):
             raise KeyError(key)
         elif isinstance(key, tuple):
             if len(key) == 2:
-                if isinstance(key[0], str):
-                    return self[{'type': key[0], 'instance': key[1]}]
-                else:
-                    # Assume we're dealing with a request for 2 ElecMeters
-                    return MeterGroup([self[i] for i in key])
-            elif len(key) == 3:
-                return self[ElecMeterID(*key)]
+                return self[{'type': key[0], 'instance': key[1]}]
             else:
                 raise TypeError()
         elif isinstance(key, dict):
@@ -242,16 +227,13 @@ class MeterGroup(Electric):
                         meters_found.append(meter)
                 elif isinstance(meter.instance(), (tuple, list)):
                     if key in meter.instance():
-                        if isinstance(meter, MeterGroup):
-                            print("Meter", key, "is in a nested meter group."
-                                  " Retrieving just the ElecMeter.")
-                            meters_found.append(meter[key])
-                        else:
-                            meters_found.append(meter)
+                        print("Meter", key, "is in a nested meter group."
+                              " Retrieving just the ElecMeter.")
+                        meters_found.append(meter[key])
             n_meters_found = len(meters_found)
             if n_meters_found > 1:
-                raise Exception('{} meters found with instance == {}: {}'
-                                .format(n_meters_found, key, meters_found))
+                raise Exception('{} meters found with instance == {}'
+                                .format(n_meters_found, key))
             elif n_meters_found == 0:
                 raise KeyError(
                     'No meters found with instance == {}'.format(key))
@@ -422,6 +404,20 @@ class MeterGroup(Electric):
             appliances.update(meter.appliances)
         return list(appliances)
 
+def map_meter_instances_to_appliance_ids(self):
+        """
+        Returns
+        -------
+        dict where keys are meter instances (for ElecMeters)
+        or tuples of meter instances (for MeterGroups) and values
+        are a list of ApplianceIDs.
+        """
+        meter_instance_to_appliance_ids_map = {}
+        for meter in self.meters:
+            meter_instance_to_appliance_ids_map[meter.instance()] = (
+                meter.appliances)
+        return meter_instance_to_appliance_ids_map
+
     def get_appliance_labels(self, meter_ids):
         """Create human-readable appliance labels.
 
@@ -558,7 +554,8 @@ class MeterGroup(Electric):
             for generator in generators[1:]:
                 another_chunk = next(generator)
                 timeframe = timeframe.intersect(another_chunk.timeframe)
-                chunk += another_chunk
+                #changed from chunk += another_chunk
+                chunk = chunk.append(another_chunk)
 
             chunk.timeframe = timeframe
             yield chunk
@@ -570,6 +567,14 @@ class MeterGroup(Electric):
         ElecMeter or MeterGroup or None
         """
         site_meters = [meter for meter in self.meters if meter.is_site_meter()]
+        submeters = [meter for meter in self.meters if not meter.is_site_meter()]
+       
+        #Find a way to take all the appliances, the for-loop does not work!
+        for meter in site_meters:
+            for submeter in submeters:
+                #for i in range(0,len(submeter.appliances)-1):
+                    meter.appliances.append(dict(type=submeter.appliances[0].type['type'], meters=submeter.appliances[0].metadata['meters']))
+        
         n_site_meters = len(site_meters)
         if n_site_meters == 0:
             return
@@ -867,7 +872,7 @@ class MeterGroup(Electric):
 
         # TODO: currently just works with the first mains meter, assuming
         # both to be simultaneosly sampled
-        mains_first_meter = self.mains().meters[0]
+        mains_first_meter = self.mains().meters[0] if hasattr(self.mains(), 'meters') else self.mains()
         good_sections = mains_first_meter.good_sections()
         sample_period = mains_first_meter.device['sample_period']
         appx_num_records_in_each_good_section = [
@@ -1017,7 +1022,7 @@ class MeterGroup(Electric):
                 timeframe = timeframe.union(meter.get_timeframe())
         return timeframe
 
-    def plot(self, start=None, end=None, width=800, ax=None):
+    def plot(self, start=None, end=None, width=800, ax=None, path=None, unit=None, resample=None):
         """
         Parameters
         ----------
@@ -1036,7 +1041,7 @@ class MeterGroup(Electric):
             if end is None:
                 end = timeframe_for_group.end
         timeframe = TimeFrame(start, end)
-
+        print("Plot timeframe: start: "+str(start)+" end: "+str(end))
         # Calculate the resolution for the x axis
         duration = (end - start).total_seconds()
         secs_per_pixel = int(round(duration / width))
@@ -1044,15 +1049,56 @@ class MeterGroup(Electric):
         # Define a resample function
         resample_func = lambda df: pd.DataFrame.resample(
             df, rule='{:d}S'.format(secs_per_pixel))
+        
+        # Define a resample function gt
+        resample_func_first = lambda df: pd.DataFrame.resample(
+            df, rule='{:d}S'.format(60))
 
         # Load data and plot each meter
         for meter in self.meters:
-            power_series = meter.power_series_all_data(
-                sections=[timeframe], preprocessing=[Apply(func=resample_func)])
-            ax = plot_series(power_series, ax=ax, label=meter.appliance_label())
+            if meter.is_site_meter():
+                labels = 'main'
+            else:
+                labels =  meter.appliance_label() if not meter.appliance_label() == None else '';
+            
+            #if not meter.is_site_meter():
+            try:
+                if resample is None:
+                    power_series = meter.power_series_all_data(sections=[timeframe], preprocessing=[Clip(),Apply(func=resample_func)])
+                else:
+                    if isinstance(meter, MeterGroup):
+                        power_series = meter.meters[0].power_series_all_data(sections=[timeframe], preprocessing=[Clip(),Apply(func=resample_func_first),Apply(func=resample_func)])
+                        for m in range(1, len(meter.meters)-1):
+                            power_series += meter.meters[m].power_series_all_data(sections=[timeframe], preprocessing=[Clip(),Apply(func=resample_func_first),Apply(func=resample_func)])
+                    else:
+                        power_series = meter.power_series_all_data(sections=[timeframe], preprocessing=[Clip(),Apply(func=resample_func_first),Apply(func=resample_func)])
+            
+                power_series = power_series.sort_index()
+                ax = plot_series(power_series, ax=ax, label=labels, unit=self.get_unit(type=unit))
+            except:
+                print('Error adding '+str(meter)+' to plot')
+                
+       
 
-        plt.legend()
+        #plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=3,loc=3, mode='expand', borderaxespad=0)
+        plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=4,loc=3, mode='expand', borderaxespad=0)
+        if not path is None:
+            fig = ax.get_figure()
+            fig.savefig(path)
+        
+        plt.clf()
+        
         return ax
+
+    def get_unit(self, type='power'):
+        if type == 'power':
+            return 'Power(watt)'
+        if type == 'energy':
+            return 'Energy(watt*hour)'
+        if type == 'voltage':
+            return 'Voltage(volt)'
+        if type == 'current':
+            return 'Current(ampere)'
 
     def appliance_label(self):
         """

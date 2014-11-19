@@ -29,7 +29,8 @@ def plot_series(series, **kwargs):
     fig = kwargs.pop('fig', None)
     date_format = kwargs.pop('date_format', '%d/%m/%y %H:%M:%S')
     tz_localize = kwargs.pop('tz_localize', True)
-
+    unit = kwargs.pop('unit', 'watt')
+    
     if ax is None:
         ax = plt.gca()
 
@@ -41,7 +42,7 @@ def plot_series(series, **kwargs):
     tz = series.index.tzinfo if tz_localize else None
     ax.xaxis.set_major_formatter(mdates.DateFormatter(date_format, 
                                                       tz=tz))
-    ax.set_ylabel('watts')
+    ax.set_ylabel(unit)
     fig.autofmt_xdate()
     return ax
 
