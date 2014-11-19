@@ -159,8 +159,9 @@ class ElecMeter(Hashable, Electric):
             return self.appliances[0]
         else:
             for app in self.appliances:
-                if app.metadata.get('dominant_appliance'):
-                    return app
+                if hasattr(app, 'metadata'):
+                    if app.metadata.get('dominant_appliance'):
+                        return app
             warn('Multiple appliances are associated with meter {}'
                  ' but none are marked as the dominant appliance. Hence'
                  ' returning the first appliance in the list.', RuntimeWarning)
@@ -173,10 +174,14 @@ class ElecMeter(Hashable, Electric):
         string : A label listing all the appliance types.
         """
         appliance_names = []
+        dominant = self.dominant_appliance()
         for appliance in self.appliances:
-            appliance_name = appliance.label()
-            if appliance.metadata.get('dominant_appliance'):
-                appliance_name = appliance_name.upper()
+            appliance_name = ''
+            if hasattr(appliance, 'label'):
+                appliance_name = appliance.label()
+            if hasattr(appliance, 'metadata'):
+                if appliance.metadata.get('dominant_appliance'):
+                    appliance_name = appliance_name.upper()
             appliance_names.append(appliance_name)
         label = ", ".join(appliance_names)
         return label
@@ -189,8 +194,8 @@ class ElecMeter(Hashable, Electric):
         list of strings e.g. ['apparent', 'active']
         """
         measurements = self.device['measurements']
-        return [m['type'] for m in measurements
-                if m['physical_quantity'] == 'power']
+        return [m['type'] for m in measurements]
+                #if m['physical_quantity'] == 'power']
 
     def __repr__(self):
         string = super(ElecMeter, self).__repr__()
@@ -261,7 +266,7 @@ class ElecMeter(Hashable, Electric):
         """Get all power parameters available"""
 
         preprocessing = kwargs.pop('preprocessing', [])
-
+        physical_measure = kwargs.pop('physical_measure','power')
         # Get source node
         last_node = self.get_source_node(**kwargs)
         generator = last_node.generator
@@ -274,7 +279,7 @@ class ElecMeter(Hashable, Electric):
 
         # Pull data through preprocessing pipeline
         for chunk in generator:            
-            series = chunk['power'].fillna(0)
+            series = chunk[physical_measure].fillna(0)
             series.timeframe = getattr(chunk, 'timeframe', None)
             series.look_ahead = getattr(chunk, 'look_ahead', None)
             yield series
@@ -316,12 +321,13 @@ class ElecMeter(Hashable, Electric):
         measurement_ac_type_prefs = kwargs.pop(
             'measurement_ac_type_prefs', None)
         preprocessing = kwargs.pop('preprocessing', [])
+        physical_measure = kwargs.pop('physical_measure','power')
 
         # Select power column:
         if not kwargs.has_key('cols'):
             best_ac_type = select_best_ac_type(self.available_power_ac_types(),
                                                measurement_ac_type_prefs)
-            kwargs['cols'] = [('power', best_ac_type)]
+            kwargs['cols'] = [(physical_measure, best_ac_type)]
 
         # Get source node
         last_node = self.get_source_node(**kwargs)

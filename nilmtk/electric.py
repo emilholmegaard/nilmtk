@@ -54,8 +54,9 @@ class Electric(object):
         in `self.appliances`.
         """
         for appliance in self.appliances:
-            if appliance.matches(key):
-                return True
+            if hasattr(appliance, 'matches'):
+                if appliance.matches(key):
+                    return True
         return False
 
     def power_series_all_data(self, **kwargs):
@@ -148,19 +149,24 @@ def align_two_meters(master, slave, func='power_series'):
     sample_period = master.sample_period()
     period_alias = '{:d}S'.format(sample_period)
     sections = master.good_sections()
-    master_generator = getattr(master, func)(sections=sections)
+         
+    measurements = master.device['measurements']
+    physical_measure = measurements[0]['physical_quantity']
+    
+    master_generator = getattr(master, func)(sections=sections, physical_measure=physical_measure)
     for master_chunk in master_generator:
         if len(master_chunk) < 2:
             return
         chunk_timeframe = TimeFrame(master_chunk.index[0],
                                     master_chunk.index[-1])
-        slave_generator = getattr(slave, func)(sections=[chunk_timeframe],
-                                               chunksize=1E9)
-        slave_chunk = next(slave_generator)
+        if hasattr(slave, func):
+            slave_generator = getattr(slave, func)(sections=[chunk_timeframe],
+                                               chunksize=1E9, physical_measure=physical_measure)
+            slave_chunk = next(slave_generator)
+            
+            # TODO: do this resampling in the pipeline?
+            slave_chunk = slave_chunk.resample(period_alias)
+            master_chunk = master_chunk.resample(period_alias)
 
-        # TODO: do this resampling in the pipeline?
-        slave_chunk = slave_chunk.resample(period_alias)
-        master_chunk = master_chunk.resample(period_alias)
-
-        yield pd.DataFrame({'master': master_chunk, 'slave': slave_chunk})
+            yield pd.DataFrame({'master': master_chunk, 'slave': slave_chunk})
 
