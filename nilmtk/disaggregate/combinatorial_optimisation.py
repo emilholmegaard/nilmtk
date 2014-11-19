@@ -170,6 +170,10 @@ class CombinatorialOptimisation(object):
         #       measurement we used to train on, not the mains measurement.
 
         # DataSet and MeterDevice metadata:
+        
+        #Add metadata for main meter
+        mains_meter = mains.metadata['device_model'] if hasattr(mains, 'metadata') else 'mains'
+        
         meter_devices = {
             'CO': {
                 'model': 'CO',
@@ -181,7 +185,7 @@ class CombinatorialOptimisation(object):
                 }]
             },
             'mains': {
-                'model': 'mains',
+                'model': mains_meter,
                 'sample_period': resample_seconds,
                 'max_sample_period': resample_seconds,
                 'measurements': [{
@@ -205,7 +209,7 @@ class CombinatorialOptimisation(object):
         # Mains meter:
         elec_meters = {
             1: {
-                'device_model': 'mains',
+                'device_model': mains_meter,
                 'site_meter': True,
                 'data_location': mains_data_location,
                 'preprocessing_applied': {},  # TODO
