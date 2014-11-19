@@ -404,7 +404,7 @@ class MeterGroup(Electric):
             appliances.update(meter.appliances)
         return list(appliances)
 
-def map_meter_instances_to_appliance_ids(self):
+    def map_meter_instances_to_appliance_ids(self):
         """
         Returns
         -------
