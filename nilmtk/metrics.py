@@ -67,7 +67,8 @@ def error_in_assigned_energy(predictions, ground_truth):
         ground_truth_energy = ground_truth_meter.total_energy(sections=sections)
         predicted_energy = pred_meter.total_energy(sections=sections)
         errors[pred_meter.instance()] = np.abs(ground_truth_energy - predicted_energy)
-    return pd.Series(errors)
+    return errors
+    #return pd.Series(errors)
 
 
 def fraction_energy_assigned_correctly(predictions, ground_truth):
@@ -141,7 +142,8 @@ def mean_normalized_error_power(predictions, ground_truth):
 
         mne[pred_meter.instance()] = total_abs_diff / sum_of_ground_truth_power
 
-    return pd.Series(mne)
+    #return pd.Series(mne)
+    return mne
 
 
 def rms_error_power(predictions, ground_truth):
@@ -206,15 +208,14 @@ def f1_score(predictions, ground_truth):
     # sklearn produces lots of DepreciationWarnings with PyTables
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
-
+    # align_two_meters does not work!!
     f1_scores = {}
     both_sets_of_meters = iterate_through_submeters_of_two_metergroups(
         predictions, ground_truth)
     for pred_meter, ground_truth_meter in both_sets_of_meters:
         scores_for_meter = pd.DataFrame(columns=['score', 'n_samples'])
-        for aligned_states_chunk in align_two_meters(pred_meter, 
-                                                     ground_truth_meter,
-                                                     'when_on'):
+        aligned_states_chunks = align_two_meters(pred_meter, ground_truth_meter, 'when_on')
+        for aligned_states_chunk in aligned_states_chunks:
             aligned_states_chunk.dropna(inplace=True)
             aligned_states_chunk = aligned_states_chunk.astype(int)
             score = sklearn_f1_score(aligned_states_chunk.icol(0),
@@ -231,8 +232,8 @@ def f1_score(predictions, ground_truth):
                      scores_for_meter['proportion']).sum()
         f1_scores[pred_meter.instance()] = avg_score
 
-    return pd.Series(f1_scores)
-
+    #return pd.Series(f1_scores)
+    return f1_scores
 
 ##### FUNCTIONS BELOW THIS LINE HAVE NOT YET BEEN CONVERTED TO NILMTK v0.2 #####
 
