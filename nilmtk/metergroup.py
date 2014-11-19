@@ -2,11 +2,11 @@ from __future__ import print_function, division
 import networkx as nx
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from compiler.ast import flatten
 from datetime import timedelta
 from warnings import warn
 from sys import stdout
-import matplotlib.pyplot as plt
 from .elecmeter import ElecMeter, ElecMeterID
 from .appliance import Appliance
 from .datastore import join_key, Key
@@ -185,7 +185,7 @@ class MeterGroup(Electric):
                     building=key.building, dataset=key.dataset)
                 return metergroup_of_building.mains()
             else:
-                #Added for finding the tuple() for REDD 
+                #Added for finding tuple for REDD 
                 for meter in self.meters:
                     if meter.identifier == key:
                         return meter
@@ -569,11 +569,9 @@ class MeterGroup(Electric):
         site_meters = [meter for meter in self.meters if meter.is_site_meter()]
         submeters = [meter for meter in self.meters if not meter.is_site_meter()]
        
-        #Find a way to take all the appliances, the for-loop does not work!
         for meter in site_meters:
             for submeter in submeters:
-                #for i in range(0,len(submeter.appliances)-1):
-                    meter.appliances.append(dict(type=submeter.appliances[0].type['type'], meters=submeter.appliances[0].metadata['meters']))
+                meter.appliances.append(dict(type=submeter.appliances[0].type['type'], meters=submeter.appliances[0].metadata['meters']))
         
         n_site_meters = len(site_meters)
         if n_site_meters == 0:
@@ -1061,7 +1059,6 @@ class MeterGroup(Electric):
             else:
                 labels =  meter.appliance_label() if not meter.appliance_label() == None else '';
             
-            #if not meter.is_site_meter():
             try:
                 if resample is None:
                     power_series = meter.power_series_all_data(sections=[timeframe], preprocessing=[Clip(),Apply(func=resample_func)])
@@ -1078,9 +1075,6 @@ class MeterGroup(Electric):
             except:
                 print('Error adding '+str(meter)+' to plot')
                 
-       
-
-        #plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=3,loc=3, mode='expand', borderaxespad=0)
         plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=4,loc=3, mode='expand', borderaxespad=0)
         if not path is None:
             fig = ax.get_figure()
