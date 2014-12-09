@@ -4,3 +4,8 @@
 class TooFewSamplesError(Exception):
     pass
 
+class UnableToGetWeatherData(Exception):
+    pass
+
+class WrongResolution(Exception):
+    pass

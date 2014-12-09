@@ -3,6 +3,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+import pandas as pd 
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import stats
+
+
 from math import sqrt
 
 SPINE_COLOR = 'gray'
@@ -46,6 +51,67 @@ def plot_series(series, **kwargs):
     fig.autofmt_xdate()
     return ax
 
+def plot_3d(x,y,z, xlabel='x', ylabel='y', zlabel='z', regression=False, **kwargs):
+        """Plot function for plotting a 3d-plot, for dataset evaluators.
+
+        Parameters
+        ----------
+        x : pd.Series
+        y : pd.Series
+        z : pd.Series
+        xlabel : label for x
+        ylabel : label for y
+        zlabel : label for z 
+        ax : matplotlib Axes, optional
+        If not provided then will generate our own axes.
+        fig : matplotlib Figure
+        
+        Can also use all **kwargs expected by `ax.plot`
+        """
+        ax = kwargs.pop('ax', None)
+        fig = kwargs.pop('fig', None)
+        
+        
+        if ax is None:
+            ax = plt.subplot(111,  projection='3d')
+
+        if fig is None:
+            fig = plt.gcf()
+       
+        if regression:
+            regression_xy, r_squared_xy = __regression(x,y)
+            green = ax.plot(x, regression_xy, z.mean(), color='g', label=xlabel+' vs '+ylabel+', R2: '+str(r_squared_xy))
+            regression_xz, r_squared_xz = __regression(x,z)
+            y_temp = pd.DataFrame(data={'y':y.mean()}, index=x.index)
+            red = ax.plot(x, y_temp['y'], regression_xz, color='r', label=xlabel+' vs '+zlabel+', R2: '+str(r_squared_xz))
+            regression_yz, r_squared_yz = __regression(y,z)
+            x_temp = pd.DataFrame(data={'x':x.mean()}, index=y.index)
+            yellow = ax.plot(x_temp, y, regression_yz, color='y', label=ylabel+' vs '+zlabel+', R2: '+str(r_squared_yz))
+            
+            ax.legend(handles=[green[0], red[0], yellow[0]], loc=4)
+            
+        # Plotting
+        ax.elev = -45
+        ax.scatter(xs=x, ys=y, zs=z)
+        ax.set_xlim([x.mean()/3.0, max(x)+100.0])
+        
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_zlabel(zlabel)
+        
+        return ax
+    
+def __regression(x, y):
+        '''
+        Calculate the linear regression between x and y
+        '''
+        slope, intercept, r_value, p_value, slope_std_error  = stats.linregress(x,y)
+        predict_y = intercept + slope * x
+        r_squared = r_value**2
+        #pred_error = y - predict_y
+        #degrees_of_freedom = len(x) - 2
+        #residual_std_error = np.sqrt(np.sum(pred_error**2) / degrees_of_freedom)
+        return predict_y, r_squared
 
 def latexify(fig_width=None, fig_height=None, columns=1):
     """Set up matplotlib's RC params for LaTeX plotting.

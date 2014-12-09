@@ -1074,8 +1074,9 @@ class MeterGroup(Electric):
                 ax = plot_series(power_series, ax=ax, label=labels, unit=self.get_unit(type=unit))
             except:
                 print('Error adding '+str(meter)+' to plot')
-                
-        plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=4,loc=3, mode='expand', borderaxespad=0)
+        
+        
+        plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=3,loc=3, mode='expand', borderaxespad=0)
         if not path is None:
             fig = ax.get_figure()
             fig.savefig(path)
