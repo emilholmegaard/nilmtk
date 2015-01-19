@@ -12,7 +12,7 @@ from ..preprocessing import Apply, Clip
 # Fix the seed for repeatability of experiments
 SEED = 42
 np.random.seed(SEED)
-
+printing = False
 
 class CombinatorialOptimisation(object):
 
@@ -55,14 +55,16 @@ class CombinatorialOptimisation(object):
             max_num_clusters = 3
 
         for i, meter in enumerate(metergroup.submeters().meters):
-            print("Training model for submeter '{}'".format(meter))
+            if printing:
+                print("Training model for submeter '{}'".format(meter))
             for chunk in meter.power_series(preprocessing=[Clip()]):
                 states = cluster(chunk, max_num_clusters)
                 self.model.append({
                     'states': states,
                     'training_metadata': meter})
                 break  # TODO handle multiple chunks per appliance 
-        print("Done training!")
+        if printing:
+            print("Done training!")
 
     def disaggregate(self, mains, output_datastore, **load_kwargs):
         '''Disaggregate mains according to the model learnt previously.
@@ -110,7 +112,8 @@ class CombinatorialOptimisation(object):
 
         # Add vampire power to the model
         vampire_power = mains.vampire_power()
-        print("vampire_power = {} watts".format(vampire_power))
+        if printing:
+            print("vampire_power = {} watts".format(vampire_power))
         n_rows = state_combinations.shape[0]
         vampire_power_array = np.zeros((n_rows, 1)) + vampire_power
         state_combinations = np.hstack((state_combinations, vampire_power_array))
@@ -146,7 +149,8 @@ class CombinatorialOptimisation(object):
                 summed_power_of_each_combination, chunk.values)
 
             for i, model in enumerate(self.model):
-                print("Estimating power demand for '{}'".format(model['training_metadata']))
+                if printing:
+                    print("Estimating power demand for '{}'".format(model['training_metadata']))
                 predicted_power = state_combinations[
                     indices_of_state_combinations, i].flatten()
                 cols = pd.MultiIndex.from_tuples([chunk.name])

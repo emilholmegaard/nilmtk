@@ -6,9 +6,8 @@ import numpy as np
 import pandas as pd 
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import stats
-
-
 from math import sqrt
+
 
 SPINE_COLOR = 'gray'
 
@@ -79,14 +78,14 @@ def plot_3d(x,y,z, xlabel='x', ylabel='y', zlabel='z', regression=False, **kwarg
             fig = plt.gcf()
        
         if regression:
-            regression_xy, r_squared_xy = __regression(x,y)
-            green = ax.plot(x, regression_xy, z.mean(), color='g', label=xlabel+' vs '+ylabel+', R2: '+str(r_squared_xy))
-            regression_xz, r_squared_xz = __regression(x,z)
+            regression_xy, r_squared_xy = calc_regression(x,y)
+            green = ax.plot(x, regression_xy, z.mean(), color='g', label=xlabel+' vs '+ylabel+', R2: '+str('%.2f' % r_squared_xy))
+            regression_xz, r_squared_xz = calc_regression(x,z)
             y_temp = pd.DataFrame(data={'y':y.mean()}, index=x.index)
-            red = ax.plot(x, y_temp['y'], regression_xz, color='r', label=xlabel+' vs '+zlabel+', R2: '+str(r_squared_xz))
-            regression_yz, r_squared_yz = __regression(y,z)
+            red = ax.plot(x, y_temp['y'], regression_xz, color='r', label=xlabel+' vs '+zlabel+', R2: '+str('%.2f' % r_squared_xz))
+            regression_yz, r_squared_yz = calc_regression(y,z)
             x_temp = pd.DataFrame(data={'x':x.mean()}, index=y.index)
-            yellow = ax.plot(x_temp, y, regression_yz, color='y', label=ylabel+' vs '+zlabel+', R2: '+str(r_squared_yz))
+            yellow = ax.plot(x_temp, y, regression_yz, color='y', label=ylabel+' vs '+zlabel+', R2: '+str('%.2f' % r_squared_yz))
             
             ax.legend(handles=[green[0], red[0], yellow[0]], loc=4)
             
@@ -101,7 +100,7 @@ def plot_3d(x,y,z, xlabel='x', ylabel='y', zlabel='z', regression=False, **kwarg
         
         return ax
     
-def __regression(x, y):
+def calc_regression(x, y):
         '''
         Calculate the linear regression between x and y
         '''
@@ -113,6 +112,196 @@ def __regression(x, y):
         #residual_std_error = np.sqrt(np.sum(pred_error**2) / degrees_of_freedom)
         return predict_y, r_squared
 
+def plot_simple_metric(values, labels, **kwargs):
+    """Plots the given values array
+
+    Parameters
+    ----------
+    values : list of floats to plot 
+    labels : list of labels that correspond to the values
+    """
+    ax = kwargs.pop('ax', None)
+    fig = kwargs.pop('fig', None)
+        
+    if ax is None:
+        ax = plt.subplot(111)
+
+    if fig is None:
+        fig = plt.gcf()
+    
+    labels = [appliance_label(label=l,remove_all=True) for l in labels]
+    
+    ax.plot(values, marker='v')
+    ax.set_xlim(xmin=-0.5,xmax=len(labels)+0.5)
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels)
+    
+    return ax
+    
+        
+
+def plot_metric(series, appliance=None, xlabels=None,ymin=None, ymax=None,marker=1,label='', **kwargs):
+    """Plots the given metric - for a list of predictions
+
+    Parameters
+    ----------
+    predictions, ground_truth : list of list of pd.Series representing F-metric
+    labels : list of labels that correspond to the predictions/ground truth
+    metric : the given metric to plot results
+    """
+    #dict for appliance_label : [f-score] 
+    appliance_value = __appliance_value_map(series, appliance)    
+    
+    ax = kwargs.pop('ax', None)
+    fig = kwargs.pop('fig', None)
+        
+    if ax is None:
+        ax = plt.subplot(111)
+
+    if fig is None:
+        fig = plt.gcf()
+    
+    markers = ['o','v','^','<','>','1','2','3','4','8','s','p','*','h']
+    i=0
+    xlabel=[]
+    
+    
+    for k in appliance_value.keys():
+        ax.plot(appliance_value[k], marker=markers[i], label=appliance_label(k))
+        i=i+1
+       
+    if ymin is None:
+        ymin = min([min(m) for m in appliance_value.values()])-0.5
+    if ymax is None:
+        ymax = max([max(m) for m in appliance_value.values()])+0.5
+        
+        
+    ax.set_ylim(ymin=ymin,ymax=ymax)
+    
+                
+    if not xlabels is None:
+        ax.set_xlim(xmin=-0.5,xmax=(len(xlabels)+0.5))
+        ax.set_xticks(np.arange(len(xlabels)))
+        ax.set_xticklabels(xlabels)
+    else:
+        ax.set_xlim(xmin=-0.5,xmax=(i+0.5))
+        ax.set_xticks(np.arange(len(xlabel))+1)
+        ax.set_xticklabels(xlabel,rotation='vertical')
+    
+    ax.legend(loc=4)
+    
+    return ax
+
+def __plot_metric(series, appliance=None, xlabels=None,ymin=None, ymax=None,marker=1,label='', **kwargs):
+    """Plots the given metric - for a list of predictions
+
+    Parameters
+    ----------
+    predictions, ground_truth : list of list of pd.Series representing F-metric
+    labels : list of labels that correspond to the predictions/ground truth
+    metric : the given metric to plot results
+    """
+    #dict for appliance_label : [f-score] 
+    appliance_value = __appliance_value_map(series, appliance)    
+    
+    ax = kwargs.pop('ax', None)
+    fig = kwargs.pop('fig', None)
+        
+    if ax is None:
+        ax = plt.subplot(111)
+
+    if fig is None:
+        fig = plt.gcf()
+    
+    markers = ['o','v','^','<','>','1','2','3','4','8','s','p','*','h']
+    colors = ['b','g','r','y','c']
+    i=1
+    count = []
+    values=[]
+    xlabel=[]
+    
+    for k in appliance_value.keys():
+        count.append(i)
+        values.append(appliance_value[k][0])
+        xlabel.append(appliance_label(k))
+        i=i+1
+    
+    #ax.plot(count,values, marker=markers[marker], label=label)
+    ax.scatter(count,values, marker=markers[marker], label=label, color=colors[marker])
+    '''
+    for k in appliance_value.keys():
+        if i==1:
+            ax.plot(y=appliance_value[k], marker=markers[i], label=__appliance_label(k))
+        i=i+1
+   '''
+        
+    if ymin is None:
+        ymin = min([min(m) for m in appliance_value.values()])-0.5
+    if ymax is None:
+        ymax = max([max(m) for m in appliance_value.values()])+0.5
+        
+    
+    ax.set_ylim(ymin=ymin,ymax=ymax)
+    ax.set_xlim(xmin=0.5,xmax=i+0.5)
+                
+    if not xlabels is None:
+        ax.set_xticks(np.arange(len(xlabels)))
+        ax.set_xticklabels(xlabels,rotation='vertical')
+    else:
+        ax.set_xticks(np.arange(len(xlabel))+1)
+        ax.set_xticklabels(xlabel,rotation='vertical')
+    
+    ax.legend(loc=1)#loc=4
+    
+    return ax
+
+
+def plot_all_metric(df, appliance=None, xlabels=None,ymin=None, ymax=None, **kwargs):
+    """Plots the given metric - for a list of predictions
+
+    Parameters
+    ----------
+    predictions, ground_truth : list of list of pd.Series representing F-metric
+    labels : list of labels that correspond to the predictions/ground truth
+    metric : the given metric to plot results
+    """
+    
+    ax = __plot_metric(df['F1'], appliance, label='F1', ymin=ymin, ymax=ymax)
+    ax = __plot_metric(df['FTE'], appliance,marker=2,label='NEAE',ymin=ymin, ymax=ymax, ax=ax)
+    ax = __plot_metric(df['MNE'], appliance,marker=3, label='MNE',ymin=ymin, ymax=ymax, ax=ax)
+        
+    return ax
+
+
+def __appliance_value_map(series, appliance):
+    #dict for appliance_label : [values] 
+    appliance_value={}
+    i=0
+    for s in series:
+        for m in s:
+            j=0
+            for index, value in m.iteritems():
+                if not appliance_value.has_key(appliance[i][j]):
+                    appliance_value[appliance[i][j]] = []
+                appliance_value[appliance[i][j]].append(value)
+                j=j+1
+        i = i+1
+    return appliance_value
+
+def appliance_label(label, remove_all=False):
+    try:
+        if remove_all:
+            label = label.split(',')[0]
+        else:
+            label = label.split(',')[0]+' '+label.split(',')[2]
+        
+        remove="()'"
+        for i in range(0,len(remove)):
+            label =label.replace(remove[i],"")
+        return label.title()
+    except:
+        return label   
+         
 def latexify(fig_width=None, fig_height=None, columns=1):
     """Set up matplotlib's RC params for LaTeX plotting.
     Call this before plotting a figure.
@@ -146,15 +335,16 @@ def latexify(fig_width=None, fig_height=None, columns=1):
 
     params = {'backend': 'ps',
               'text.latex.preamble': ['\usepackage{gensymb}'],
-              'axes.labelsize': 8, # fontsize for x and y labels (was 10)
-              'axes.titlesize': 8,
-              'text.fontsize': 8, # was 10
-              'legend.fontsize': 8, # was 10
-              'xtick.labelsize': 8,
-              'ytick.labelsize': 8,
+              'axes.labelsize': 12, # fontsize for x and y labels (was 8) 10
+              'axes.titlesize': 12,
+              'text.fontsize': 10, # was 8
+              'legend.fontsize': 10, # was 8
+              'xtick.labelsize': 10,
+              'ytick.labelsize': 10,
               'text.usetex': True,
               'figure.figsize': [fig_width,fig_height],
-              'font.family': 'serif'
+              'font.family': 'serif',
+              'font.weight': 'bold'
     }
 
     matplotlib.rcParams.update(params)

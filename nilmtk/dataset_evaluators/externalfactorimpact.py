@@ -17,7 +17,10 @@ class ExternalImpact(object):
         self.freq
         self.meter = meter
         self.weatherdata = self.__get_weather_data()
-        self.events = self.__get_events_data()
+        try:
+            self.events = self.__get_events_data()
+        except:
+            self.events = pd.DataFrame()
         self.powerdata = None
         self.data = pd.DataFrame()
 
@@ -28,14 +31,14 @@ class ExternalImpact(object):
         -------
         data : pd.Series timestamp, consumption
         '''
-        data = meter.power_series_all_data(preprocessing=[Clip()],sections=meter.good_sections())
+        data = meter.power_series_all_data(preprocessing=[Clip()])#,sections=meter.good_sections()
         return data
     
     def __get_weather_data(self):
         '''
         Get weather data from weather impact.
         '''
-        weather = WeatherImpact(dataset=self.dataset, meter=self.meter, resolution='hour')
+        weather = WeatherImpact(dataset=self.dataset, meter=self.meter)
         df = weather.get_weather_data()
         df = df.resample(rule=self.freq)
         return df
@@ -47,7 +50,7 @@ class ExternalImpact(object):
         event = Events(self.meter)
         e = event.get_events_raw()
         df = pd.DataFrame(data={'event':e.values}, index=e.index, dtype=np.bool)
-        df = df.resample(rule=self.freq, how='sum')
+        df = df.resample(rule=self.freq, how='count')
         return df
     
     def get_data(self):
@@ -59,7 +62,7 @@ class ExternalImpact(object):
             #Join the two data sets and remove NaN, for having proper indexing
             df = self.externaldata.join(df).dropna()
             df = df.join(self.weatherdata['temperature']).dropna()
-            df = df.join(self.events).dropna()
+            df = df.join(self.events).fillna(0)
             self.data = df
         return self.data
     
@@ -73,7 +76,7 @@ class ExternalImpact(object):
         
         if not path is None:
             fig = ax.get_figure()
-            fig.savefig(path)
+            fig.savefig(path, bbox_inches='tight')
             plt.clf()    
         
         return ax

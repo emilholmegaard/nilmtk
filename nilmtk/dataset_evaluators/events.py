@@ -51,13 +51,22 @@ class Events(object):
         data = self.get_events(resolution)  
         fig = plt.figure()
         ax = plt.subplot(111)
+        ax.set_xlim(xmin=0,xmax=24)
+        
+        
         ax.bar(data.index, data['E'], width=1)
         ax.set_ylabel('Events')
-        ax.set_title('Events by '+resolution)
+        ax.set_xlabel('Hours')
+        
+        ax.set_xticks(np.arange(0, 25, 6))
+        #xlabel = ['6','12','18', '24']
+        #ax.set_xticks(np.arange(4))
+        #ax.set_xticklabels(xlabel)
+        #ax.set_title('Events by '+resolution)
         
         if not path is None:
             fig = ax.get_figure()
-            fig.savefig(path)
+            fig.savefig(path, bbox_inches='tight')
             plt.clf()
         return ax
 
@@ -74,22 +83,20 @@ class Events(object):
         
         DATA_THRESHOLD = 10
         
-        serie = []
-        for chunk in self.meter.power_series(preprocessing=[Clip()]):
+        serie = pd.DataFrame()
+        for chunk in self.meter.power_series(preprocessing=[Clip()] ,sections=self.meter.good_sections()):#,sections=self.meter.good_sections()
             d = chunk[chunk.diff() > DATA_THRESHOLD].dropna()
-            serie.append(d)
+            if serie.empty:
+                serie = d
+            else:
+                serie.append(d)
             d = chunk[chunk.diff() < DATA_THRESHOLD*-1].dropna()
-            serie.append(d)
+            if serie.empty:
+                serie = d
+            else:
+                serie.append(d)
          
-        try:
-            df = pd.DataFrame(serie)#, dtype=np.bool
-            df = df.T
-            df = df.iloc[:,1]
-            return df
-        except:
-            raise TooFewSamplesError("Cannot calculate events because"
-                                     " data does not contain events with a difference between +-{:d}."
-                                     .format(DATA_THRESHOLD))
+        return serie
        
             
     

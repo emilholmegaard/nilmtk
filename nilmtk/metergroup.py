@@ -12,7 +12,7 @@ from .appliance import Appliance
 from .datastore import join_key, Key
 from .utils import (tree_root, nodes_adjacent_to_root, simplest_type_for,
                     flatten_2d_list, convert_to_timestamp, container_to_string) 
-from .plots import plot_series
+from .plots import plot_series, appliance_label
 from .measurement import select_best_ac_type, AC_TYPES
 from .electric import Electric
 from .timeframe import TimeFrame
@@ -1055,9 +1055,9 @@ class MeterGroup(Electric):
         # Load data and plot each meter
         for meter in self.meters:
             if meter.is_site_meter():
-                labels = 'main'
+                labels = 'Main'
             else:
-                labels =  meter.appliance_label() if not meter.appliance_label() == None else '';
+                labels =  appliance_label(label=meter.appliance_label(), remove_all=True) if not meter.appliance_label() == None else '';
             
             try:
                 if resample is None:
@@ -1076,10 +1076,10 @@ class MeterGroup(Electric):
                 print('Error adding '+str(meter)+' to plot')
         
         
-        plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=3,loc=3, mode='expand', borderaxespad=0)
+        plt.legend(bbox_to_anchor=(0., 1.02,1.,.102),ncol=4,loc=3, mode='expand', borderaxespad=0.)
         if not path is None:
             fig = ax.get_figure()
-            fig.savefig(path)
+            fig.savefig(path, bbox_inches='tight')
         
         plt.clf()
         
@@ -1106,18 +1106,17 @@ class MeterGroup(Electric):
 
 def iterate_through_submeters_of_two_metergroups(master, slave):
     """
-    Parameters
+    Parameter
     ----------
     master, slave : MeterGroup
-
+    
     Returns
     -------
     list of 2-tuples of the form (`master_meter`, `slave_meter`)
     """
     zipped = []
     for master_meter in master.submeters().meters:
-        slave_identifier = master_meter.identifier._replace(
-            dataset=slave.dataset())
+        slave_identifier = master_meter.identifier._replace(dataset=slave.dataset())
         slave_meter = slave[slave_identifier]
         zipped.append((master_meter, slave_meter))
     return zipped

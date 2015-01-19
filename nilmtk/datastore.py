@@ -50,7 +50,10 @@ class HDFDataStore(DataStore):
         mode : string
             File open mode.  e.g. 'r' or 'w'
         """
-        self.store = pd.HDFStore(filename, mode=mode)
+        if not pd.HDFStore(filename).is_open:
+            self.store = pd.HDFStore(filename, mode=mode)
+        else:
+            self.store = pd.HDFStore(filename)
         super(HDFDataStore, self).__init__()
 
     def load(self, key, cols=None, sections=None, n_look_ahead_rows=0,

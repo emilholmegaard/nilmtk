@@ -6,12 +6,13 @@ Created on Nov 25, 2014
 from __future__ import print_function, division
 from nilmtk.dataset_evaluators import Events
 from nilmtk.preprocessing import Clip
-from ..plots import plot_series
+from ..plots import plot_series, appliance_label
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd 
 import numpy as np
+from scipy import stats
 import datetime 
 
 class EventImpact(object):
@@ -58,8 +59,11 @@ class EventImpact(object):
         for m in self.data.meters:
             try:
                 #Remove main meters
-                if not m.upstream_meter() or include_main:
-                    event_dict[m.appliance_label()] = Events(meter=m).get_events_raw().dropna()#m.power_series_all_data(preprocessing=[Clip()], sections=self.data.meters[1].good_sections())#
+                if not include_main:
+                    if m.upstream_meter():
+                        event_dict[m.appliance_label()] = Events(meter=m).get_events_raw().dropna()#m.power_series_all_data(preprocessing=[Clip()], sections=self.data.meters[1].good_sections())#
+                else:
+                    event_dict[m.appliance_label()] = Events(meter=m).get_events_raw().dropna()
             except:
                 print('Too few events for '+str(m.appliance_label()))
         self.events = event_dict
@@ -74,6 +78,7 @@ class EventImpact(object):
            
         #Appliances
         keys = self.events.keys()
+        
         #Create empty matrix for correlation matrice
         event_matrix=[[0 for y in range(len(keys))] for x in range(len(keys))]
         events_split = {}   
@@ -84,8 +89,13 @@ class EventImpact(object):
         k1_num = 0
         for k1 in keys:
             k2_num  =0 
+            e1 = events_split[k1].sort_index()
             for k2 in keys:
-                corr = events_split[k1].corr(events_split[k2], method='pearson', min_periods=1)
+                e2 = events_split[k2].sort_index()
+                corr = e1.corr(other=e2, method='pearson', min_periods=3)
+                #Using pandas.Series.corr it is not always 1 when k1==k2
+                if np.array_equal(e1, e2) and k1==k2:
+                    corr = 1
                 event_matrix[k1_num][k2_num] = corr
                 k2_num = k2_num + 1
             k1_num = k1_num + 1
@@ -109,7 +119,7 @@ class EventImpact(object):
         
         if not path is None:
             fig = ax.get_figure()
-            fig.savefig(path)
+            fig.savefig(path, bbox_inches='tight')
             plt.clf()
             
         return ax
@@ -140,15 +150,12 @@ class EventImpact(object):
             if len(self.events_at_same_time[0])  >= 2:
                 if k2_num  > 1 :
                     if not self.events_at_same_time[1][k2_num][k2].empty:
-                        ax.scatter(x=self.events_at_same_time[1][k2_num].index, y=self.events_at_same_time[1][k2_num][k2],color=colors[k2_num], zorder=3)
+                        ax.scatter(x=self.events_at_same_time[1][k2_num][k2].index, y=self.events_at_same_time[1][k2_num][k2],color=colors[k2_num], zorder=3, label=keys[k2_num]+' '+str(len(self.events_at_same_time[1][k2_num][k2].values))+' events')
                         keys = self.events.keys()
-                        label.append(keys[k2_num]+' '+str(len(self.events_at_same_time[1][k2_num][k2].values))+' events, '+colors[k2_num]+' ')
             k2_num = k2_num + 1
              
-        if len(label) > 0: 
-            ax.set_xlabel(label)
         plt.suptitle('Events for two appliance types at same time')
-        
+        plt.legend(loc=4)
         
         return ax
         
@@ -163,7 +170,7 @@ class EventImpact(object):
         count = 0
         
         for ax in axes.flat:
-            im = ax.imshow(self.correlations[count], interpolation='nearest',cmap=cm.RdBu)
+            im = ax.imshow(self.correlations[count],vmin=-1.0,vmax=1.0, interpolation='nearest',cmap=cm.RdBu )
             ax.set_yticks(np.arange(len(self.events.keys())), minor=False)
             ax.set_xticks(np.arange(len(self.events.keys())), minor=False)
             if count==0:
@@ -181,7 +188,7 @@ class EventImpact(object):
         for k in self.events.keys():
             #if k == '':
             #    k='main'
-            label.append(k)
+            label.append(appliance_label(label=k,remove_all=True))
         
             
         for i, row in enumerate(axes):
@@ -194,9 +201,9 @@ class EventImpact(object):
                     cell.set_yticklabels(label)
                 else:
                     cell.set_yticklabels([])
+        
 
         plt.suptitle('Correlation between appliances minute pr minute in periods')
         cax,kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
         cbar = plt.colorbar(im, cax=cax, **kw)
-        
         return ax

@@ -6,7 +6,7 @@ from .hashable import Hashable
 from .utils import flatten_2d_list
 from nilm_metadata import get_appliance_types
 
-ApplianceID = namedtuple('ApplianceID', ['type', 'instance'])
+ApplianceID = namedtuple('ApplianceID', ['type', 'instance', 'building'])
 
 class Appliance(Hashable):
     """Represents an appliance instance.
@@ -39,7 +39,7 @@ class Appliance(Hashable):
     def identifier(self):
         """Return ApplianceID"""
         md = self.metadata
-        return ApplianceID(md.get('type'), md.get('instance'))
+        return ApplianceID(md.get('type'), md.get('instance'), md.get('building'))
 
     @property
     def type(self):

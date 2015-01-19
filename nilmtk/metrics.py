@@ -38,8 +38,8 @@ from __future__ import print_function, division
 import numpy as np
 import pandas as pd
 import math
-from .metergroup import MeterGroup, iterate_through_submeters_of_two_metergroups
-from .electric import align_two_meters
+from nilmtk.metergroup import MeterGroup, iterate_through_submeters_of_two_metergroups
+from nilmtk.electric import align_two_meters
 
 def error_in_assigned_energy(predictions, ground_truth):
     """Compute error in assigned energy.
@@ -67,8 +67,8 @@ def error_in_assigned_energy(predictions, ground_truth):
         ground_truth_energy = ground_truth_meter.total_energy(sections=sections)
         predicted_energy = pred_meter.total_energy(sections=sections)
         errors[pred_meter.instance()] = np.abs(ground_truth_energy - predicted_energy)
-    return errors
-    #return pd.Series(errors)
+    #return errors
+    return pd.Series(errors)
 
 
 def fraction_energy_assigned_correctly(predictions, ground_truth):
@@ -142,8 +142,8 @@ def mean_normalized_error_power(predictions, ground_truth):
 
         mne[pred_meter.instance()] = total_abs_diff / sum_of_ground_truth_power
 
-    #return pd.Series(mne)
-    return mne
+    return pd.Series(mne)
+    #return mne
 
 
 def rms_error_power(predictions, ground_truth):
@@ -232,8 +232,9 @@ def f1_score(predictions, ground_truth):
                      scores_for_meter['proportion']).sum()
         f1_scores[pred_meter.instance()] = avg_score
 
-    #return pd.Series(f1_scores)
-    return f1_scores
+
+    return pd.Series(data=f1_scores.values(), index=f1_scores.keys(), dtype=np.float32)
+    #return f1_scores
 
 ##### FUNCTIONS BELOW THIS LINE HAVE NOT YET BEEN CONVERTED TO NILMTK v0.2 #####
 
