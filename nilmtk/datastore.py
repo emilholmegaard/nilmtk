@@ -202,8 +202,11 @@ class HDFDataStore(DataStore):
         else:
             node = self.store.get_node(key)
 
-        metadata = deepcopy(node._v_attrs.metadata)
-        return metadata
+        try:
+            metadata = deepcopy(node._v_attrs.metadata)
+            return metadata
+        except(AttributeError):
+            return ''
 
     def save_metadata(self, key, metadata):
         """

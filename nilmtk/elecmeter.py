@@ -4,7 +4,7 @@ from collections import namedtuple
 from copy import deepcopy
 import pandas as pd
 import matplotlib.pyplot as plt
-from .preprocessing import Clip
+from .preprocessing import Clip, SelectByHour
 from .stats import TotalEnergy, GoodSections, DropoutRate
 from .hashable import Hashable
 from .appliance import Appliance
@@ -342,8 +342,11 @@ class ElecMeter(Hashable, Electric):
         # Pull data through preprocessing pipeline
         for chunk in generator:
             series = chunk.icol(0).dropna()
-            series.timeframe = getattr(chunk, 'timeframe', None)
-            series.look_ahead = getattr(chunk, 'look_ahead', None)
+            try:
+                series.timeframe = getattr(chunk, 'timeframe', None)
+                series.look_ahead = getattr(chunk, 'look_ahead', None)
+            except:
+                warn("Problem getattr for 'timeframe' and 'look_ahead'")
             yield series
 
     def dry_run_metadata(self):

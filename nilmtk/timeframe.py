@@ -266,7 +266,7 @@ def timeframes_from_periodindex(periods):
     -------
     list of TimeFrames
     """
-    assert isinstance(periods, pd.tseries.period.PeriodIndex)
+    assert isinstance(periods, pd.PeriodIndex)#pd.tseries.period.PeriodIndex)
     timeframes = []
     for period in periods:
         timeframe = TimeFrame(period.start_time, period.end_time)

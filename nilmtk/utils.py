@@ -2,6 +2,7 @@ from __future__ import print_function, division
 import numpy as np
 import pandas as pd
 import networkx as nx
+import math as math
 from copy import deepcopy
 from os.path import isdir, dirname, abspath
 from os import getcwd
@@ -77,18 +78,48 @@ def find_nearest(known_array, test_array):
         value in `known_array`.
     """
     # from http://stackoverflow.com/a/20785149/732596
-
     index_sorted = np.argsort(known_array)
     known_array_sorted = known_array[index_sorted]
 
-    idx1 = np.searchsorted(known_array_sorted, test_array)
+    idx1 = np.searchsorted(known_array_sorted, test_array, side="right")
     idx2 = np.clip(idx1 - 1, 0, len(known_array_sorted)-1)
-    idx3 = np.clip(idx1,     0, len(known_array_sorted)-1)
+    idx3 = np.clip(idx1, 0, len(known_array_sorted)-1)
 
     diff1 = known_array_sorted[idx3] - test_array
     diff2 = test_array - known_array_sorted[idx2]
-
+    #Find a solution here where it takes the smallest absolute error!!
     indices = index_sorted[np.where(diff1 <= diff2, idx3, idx2)]
+    residuals = test_array - known_array[indices]
+    return indices, residuals
+
+def find_nearest_2(known_array, test_array):
+    """Find closest value in `known_array` for each element in `test_array`.
+
+    Parameters
+    ----------
+    known_array : numpy array
+        consisting of scalar values only; shape: (m, 1)
+    test_array : numpy array
+        consisting of scalar values only; shape: (n, 1)
+
+    Returns
+    -------
+    indices : numpy array; shape: (n, 1)
+        For each value in `test_array` finds the index of the closest value
+        in `known_array`.
+    residuals : numpy array; shape: (n, 1)
+        For each value in `test_array` finds the difference from the closest
+        value in `known_array`.
+    """
+    index_sorted = np.argsort(known_array)
+    known_array_sorted = known_array[index_sorted]
+
+    idx = np.searchsorted(known_array_sorted, test_array, side="left")
+    #Find way to check this - gives: only length-1 arrays can be converted to Python scalars
+    if math.fabs((known_array_sorted[idx-1] - test_array)) < math.fabs((test_array - known_array_sorted[idx])):
+        indices = idx-1
+    else:
+        indices = idx
     residuals = test_array - known_array[indices]
     return indices, residuals
 

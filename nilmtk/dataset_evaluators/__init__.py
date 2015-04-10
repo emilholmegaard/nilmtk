@@ -3,3 +3,5 @@ from nilmtk.dataset_evaluators.externalfactorimpact import ExternalImpact
 from nilmtk.dataset_evaluators.events import Events
 from nilmtk.dataset_evaluators.weatherimpact import WeatherImpact
 from nilmtk.dataset_evaluators.eventimpact import EventImpact
+from nilmtk.dataset_evaluators.evaluate_meter_vsd import Evaluate_Meter_VSD
+from nilmtk.dataset_evaluators.evaluate_vsd import Evaluate_VSD

@@ -170,7 +170,7 @@ class EventImpact(object):
         count = 0
         
         for ax in axes.flat:
-            im = ax.imshow(self.correlations[count],vmin=-1.0,vmax=1.0, interpolation='nearest',cmap=cm.RdBu )
+            im = ax.imshow(self.correlations[count],vmin=-1.0,vmax=1.0, interpolation='nearest',cmap=cm.get_cmap('RdBu'))#).RdBu )
             ax.set_yticks(np.arange(len(self.events.keys())), minor=False)
             ax.set_xticks(np.arange(len(self.events.keys())), minor=False)
             if count==0:

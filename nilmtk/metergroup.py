@@ -16,7 +16,7 @@ from .plots import plot_series, appliance_label
 from .measurement import select_best_ac_type, AC_TYPES
 from .electric import Electric
 from .timeframe import TimeFrame
-from .preprocessing import Apply, Clip
+from .preprocessing import Apply, Clip, SelectByHour
 from pandas.core.series import Series
 
 class MeterGroup(Electric):

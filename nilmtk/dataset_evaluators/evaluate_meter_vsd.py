@@ -4,68 +4,72 @@ from sklearn.cluster import KMeans
 import numpy as np 
 import pandas as pd
 import matplotlib.pyplot as plt
-import scipy.cluster.hierarchy as hcluster
 from nilmtk.plots import appliance_label
 
-class States(object):
+class Evaluate_Meter_VSD(object):
 
-    def __init__(self, meter=None, use_kmean=False):
-        self.use_kmean = use_kmean
+    def __init__(self, meter=None, ratio=0.7):
         self.meter = meter
-        self.states = None
         self.clusterdata = pd.DataFrame()
         self.clusters = None
-        self.MIN_OBS = 100
+        self.MIN_OBS = 250
+        #ratio of zero slopes to indicate vsd
+        self.slope_ratio = ratio
+        self.possible_vsd = None
+        
     
-    def get_states(self):
+    def is_vsd(self):
         """
         Parameters
         ----------
         
         Returns
         -------
-        states : int
+        isVSD : bool
        
         Raises
         ------
         """
-        MAX_DATA = 4000
-        if self.clusterdata.empty:
-            data = self.__get_data()
-            #"D": data.diff().abs().values
-            df = pd.DataFrame(data={"power":data.values}, dtype=np.float32).dropna()
         
-            c = df.describe().count
-            if c > MAX_DATA:
-                df = df[0:MAX_DATA]
-       
-            self.clusterdata = df
-        # clustering
-        if self.use_kmean:
-            return self.__kmean_cluster()
-        else:
-            return self.__hcluster()
-        
-    def __hcluster(self):
-        # clustering
-        thresh = self.clusterdata["power"].max()/6
-        if not self.states:
-            Z = hcluster.linkage( self.clusterdata, "median" )  # N-1 "average" "centroid" "single"median complete
-            self.clusters = hcluster.fcluster( Z, thresh , criterion="distance" )
-            self.clusterdata =  self.clusterdata.join(pd.DataFrame(data={'cluster':self.clusters}))
+        if not self.possible_vsd:
+            self.__kmean_cluster()
+            zero_slope_score = self.__zero_slope(chunksize_factor=0.01)
+            self.possible_vsd = (zero_slope_score > self.slope_ratio)
             
-            return self.__cluster_postprocess()
-        else:
-            return self.states
+        return self.possible_vsd
+        
     
+    def __zero_slope(self, chunksize_factor, max_slope = .001):
+        """return the ratio of zero slopes
+
+        chunksize_factor --> 0->1
+        returns  zero_slopes / total_chunks
+        """
+        if chunksize_factor >= 1:
+            chunksize_factor = 0.01
+        chunksize = len(self.clusterdata)*chunksize_factor
+        total_chunks = len(self.clusterdata) % chunksize
+        midindex = chunksize / 2
+        zero_slopes = []
+        for index in xrange(len(self.clusterdata) - chunksize):
+            chunk = self.clusterdata[index : index + chunksize, :]
+            # subtract the endpoints of the chunk
+            # if not sufficient, maybe use a linear fit
+            dx, dy = abs(chunk[0] - chunk[-1])
+            #print dy, dx, dy / dx
+            if 0 <= dy / dx < max_slope:
+                zero_slopes.append(chunk[midindex])    
+        
+        return len(zero_slopes)/total_chunks
+        
     def __kmean_cluster(self):
-        if not self.states:
+        if not self.possible_vsd:
             k_means = KMeans(init='k-means++', n_clusters=3)
             self.clusters = k_means.fit(self.clusterdata).labels_
             self.clusterdata =  self.clusterdata.join(pd.DataFrame(data={'cluster':self.clusters}))
             return self.__cluster_postprocess()
         else:
-            return self.states
+            return self.possible_vsd
     
     def __cluster_postprocess(self):
         cluster_len = len(set(self.clusters))
@@ -76,9 +80,12 @@ class States(object):
             
         cluster_color = pd.DataFrame(data={'cluster_color':self.clusters}).replace([0,1,2,3,4,5,6],['b','g','r','c','m','y','k'])
         self.clusterdata = self.clusterdata.join(cluster_color).dropna()
-        self.states = len(set(self.clusters))
+        #Get data ready for finding plateaus
+        self.clusterdata=self.clusterdata.sort('power', ascending=False)
+        self.clusterdata.index = range(0,len(self.clusterdata))
+        self.possible_vsd = self.is_vsd()
         
-        return self.states
+        return self.possible_vsd
     
     def __get_data(self):
         '''
@@ -90,22 +97,17 @@ class States(object):
         
         return data
       
-    def plot(self,type=None, path=None):
+    def plot(self, path=None):
         """
         Parameters
-        type : if set to 'sort' it will arrange the values after the largest first
         path : save figure to path
         ----------
         ax : matplotlib.axes, optional
         """     
-        self.get_states()  
+        is_vsd = self.is_vsd()  
         fig = plt.figure()
         ax = plt.subplot(111)
         
-        
-        if type == 'sort':
-            self.clusterdata=self.clusterdata.sort('power', ascending=False)
-            self.clusterdata.index = range(0,len(self.clusterdata))
         
         i = self.clusterdata.index
         w= 0.0001
@@ -120,7 +122,11 @@ class States(object):
         ax.set_ylabel('Power (watt)')  
         ax.set_xlabel('Data Points') 
         
-        title = appliance_label(label=self.meter.appliance_label(),remove_all=True)
+        if is_vsd:
+            title = appliance_label(label=self.meter.appliance_label(),remove_all=True) + ' is VSD candidate'
+        else:
+            title = appliance_label(label=self.meter.appliance_label(),remove_all=True)
+        
         ax.set_title(title)
         
         if not path is None:

@@ -22,6 +22,7 @@ def cluster(X, max_num_clusters=3):
     centroids : ndarray of int32s
         Power in different states of an appliance, sorted
     '''
+    
     # Find where power consumption is greater than 10
     data = _transform_data(X)
 
@@ -30,9 +31,14 @@ def cluster(X, max_num_clusters=3):
     centroids = np.append(centroids, 0)  # add 'off' state
     centroids = np.round(centroids).astype(np.int32)
     centroids = np.unique(centroids)  # np.unique also sorts
+    
     # TODO: Merge similar clusters
-    return centroids
-
+    #Simpler approach!!
+    #centroids = np.array([0,data.mean(),data.max()])
+    #centroids = np.unique(centroids)  # np.unique also sorts
+    
+    return centroids.flatten()
+    
 
 def _transform_data(data):
     '''Subsamples if needed and converts to column vector (which is what
@@ -50,7 +56,7 @@ def _transform_data(data):
 
     MAX_NUMBER_OF_SAMPLES = 2000
     MIN_NUMBER_OF_SAMPLES = 20
-    DATA_THRESHOLD = 10
+    DATA_THRESHOLD = -1#10
 
     data_above_thresh = data[data > DATA_THRESHOLD].dropna().values
     n_samples = len(data_above_thresh)
