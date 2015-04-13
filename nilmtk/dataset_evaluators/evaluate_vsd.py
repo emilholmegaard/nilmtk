@@ -27,6 +27,9 @@ class Evaluate_VSD(object):
                 warn('Meter: {} is a possible variable speed drive.'.format(meter), RuntimeWarning)
                 
             if self.path:
-                e.plot(self.path+'/meter_{}.png'.format(meter))
+                if meter.is_site_meter():
+                    e.plot(self.path+'/meter_main.png')
+                else:
+                    e.plot(self.path+'/meter_{}.png'.format(meter))
             
         

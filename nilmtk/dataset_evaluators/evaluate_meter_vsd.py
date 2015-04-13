@@ -10,7 +10,7 @@ class Evaluate_Meter_VSD(object):
 
     def __init__(self, meter=None, ratio=0.7):
         self.meter = meter
-        self.clusterdata = pd.DataFrame()
+        self.clusterdata = self.__get_data()
         self.clusters = None
         self.MIN_OBS = 250
         #ratio of zero slopes to indicate vsd
@@ -32,8 +32,9 @@ class Evaluate_Meter_VSD(object):
         """
         
         if not self.possible_vsd:
-            self.__kmean_cluster()
-            zero_slope_score = self.__zero_slope(chunksize_factor=0.01)
+            if self.clusters is None:
+                self.__kmean_cluster()
+            zero_slope_score = self.__zero_slope(chunksize_factor=0.002)
             self.possible_vsd = (zero_slope_score > self.slope_ratio)
             
         return self.possible_vsd
@@ -47,25 +48,27 @@ class Evaluate_Meter_VSD(object):
         """
         if chunksize_factor >= 1:
             chunksize_factor = 0.01
-        chunksize = len(self.clusterdata)*chunksize_factor
+        chunksize = int(len(self.clusterdata)*chunksize_factor)
         total_chunks = len(self.clusterdata) % chunksize
-        midindex = chunksize / 2
         zero_slopes = []
-        for index in xrange(len(self.clusterdata) - chunksize):
-            chunk = self.clusterdata[index : index + chunksize, :]
+        for index in range(len(self.clusterdata) - chunksize):
+            midindex = int((index+chunksize-1) / 2)
+            c = self.clusterdata['power']
+            chunk = c[index : index + chunksize : 1]
             # subtract the endpoints of the chunk
             # if not sufficient, maybe use a linear fit
-            dx, dy = abs(chunk[0] - chunk[-1])
-            #print dy, dx, dy / dx
-            if 0 <= dy / dx < max_slope:
-                zero_slopes.append(chunk[midindex])    
+            slope = abs(chunk[index] - chunk[index+chunksize-1])
+            if 0 <= slope < max_slope:
+                zero_slopes.append(midindex)    
         
         return len(zero_slopes)/total_chunks
         
+                
     def __kmean_cluster(self):
         if not self.possible_vsd:
             k_means = KMeans(init='k-means++', n_clusters=3)
-            self.clusters = k_means.fit(self.clusterdata).labels_
+            self.clusters = k_means.fit(self.__get_data(reshape=True)).labels_
+            self.clusterdata = pd.DataFrame(data={'power':self.__get_data()})
             self.clusterdata =  self.clusterdata.join(pd.DataFrame(data={'cluster':self.clusters}))
             return self.__cluster_postprocess()
         else:
@@ -87,7 +90,7 @@ class Evaluate_Meter_VSD(object):
         
         return self.possible_vsd
     
-    def __get_data(self):
+    def __get_data(self, reshape=False):
         '''
         Returns
         -------
@@ -95,7 +98,13 @@ class Evaluate_Meter_VSD(object):
         '''
         data = self.meter.power_series_all_data(preprocessing=[Clip()])
         
-        return data
+        DATA_THRESHOLD = -1#10
+        data_above_thresh = data[data > DATA_THRESHOLD].dropna().values
+        if reshape:
+            n_samples = len(data_above_thresh)
+            return data_above_thresh.reshape(n_samples, 1)
+        else:
+            return data_above_thresh
       
     def plot(self, path=None):
         """
